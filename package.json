@@ -1,5 +1,5 @@
 {
-  "name": "sales-dashboard",
+  "name": "B2B-dashboard",
   "version": "1.0.0",
   "dependencies": {
     "googleapis": "^144.0.0"
