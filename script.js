@@ -374,5 +374,120 @@ async function refreshFromSheet(){
   }
 }
 
+// ---- "Visits Till Date" calendar popup ----
+let calendarViewDate = new Date();
+
+function pad2(n){ return String(n).padStart(2,"0"); }
+function isoToday(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+
+function refreshAsOfDisplay(){
+  const iso = document.getElementById("as-of-date").value;
+  document.getElementById("as-of-display").textContent = iso ? fmtDate(iso) : "--";
+}
+window.refreshAsOfDisplay = refreshAsOfDisplay;
+
+function renderCalendarPopup(){
+  const popup = document.getElementById("cal-popup");
+  const selectedISO = document.getElementById("as-of-date").value;
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayISO = isoToday();
+
+  let daysHtml = "";
+  for(let i=0;i<firstDay;i++){
+    daysHtml += `<button type="button" class="cal-day empty" disabled></button>`;
+  }
+  for(let day=1; day<=daysInMonth; day++){
+    const iso = `${year}-${pad2(month+1)}-${pad2(day)}`;
+    const classes = ["cal-day"];
+    if(iso===selectedISO) classes.push("selected");
+    if(iso===todayISO) classes.push("today");
+    daysHtml += `<button type="button" class="${classes.join(" ")}" data-iso="${iso}">${day}</button>`;
+  }
+
+  popup.innerHTML = `
+    <span class="cal-title">Visits Till Date</span>
+    <div class="cal-nav">
+      <button type="button" class="cal-nav-btn" id="cal-prev">&#8249;</button>
+      <span class="cal-month-label">${monthNames[month]} ${year}</span>
+      <button type="button" class="cal-nav-btn" id="cal-next">&#8250;</button>
+    </div>
+    <div class="cal-weekdays">
+      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+    </div>
+    <div class="cal-days">${daysHtml}</div>
+    <div class="cal-footer">
+      <button type="button" class="cal-link" id="cal-today">Today</button>
+      <button type="button" class="cal-link" id="cal-clear">Clear</button>
+    </div>
+  `;
+
+  popup.querySelector("#cal-prev").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    calendarViewDate = new Date(year, month-1, 1);
+    renderCalendarPopup();
+  });
+  popup.querySelector("#cal-next").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    calendarViewDate = new Date(year, month+1, 1);
+    renderCalendarPopup();
+  });
+  popup.querySelectorAll(".cal-day[data-iso]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      document.getElementById("as-of-date").value = btn.dataset.iso;
+      refreshAsOfDisplay();
+      closeCalendar();
+      onAsOfChange();
+    });
+  });
+  popup.querySelector("#cal-today").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    const t = isoToday();
+    document.getElementById("as-of-date").value = t;
+    calendarViewDate = new Date();
+    refreshAsOfDisplay();
+    closeCalendar();
+    onAsOfChange();
+  });
+  popup.querySelector("#cal-clear").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    document.getElementById("as-of-date").value = "";
+    refreshAsOfDisplay();
+    closeCalendar();
+    onAsOfChange();
+  });
+}
+
+function openCalendar(){
+  const popup = document.getElementById("cal-popup");
+  const selectedISO = document.getElementById("as-of-date").value;
+  calendarViewDate = selectedISO ? new Date(selectedISO+"T00:00:00") : new Date();
+  renderCalendarPopup();
+  popup.classList.add("open");
+}
+function closeCalendar(){
+  document.getElementById("cal-popup").classList.remove("open");
+}
+
+document.getElementById("as-of-trigger").addEventListener("click", (e)=>{
+  e.stopPropagation();
+  const popup = document.getElementById("cal-popup");
+  if(popup.classList.contains("open")) closeCalendar();
+  else openCalendar();
+});
+document.addEventListener("click", (e)=>{
+  const badge = document.querySelector(".date-badge");
+  if(badge && !badge.contains(e.target)) closeCalendar();
+});
+
+refreshAsOfDisplay();
+
 bindFilterEvents();
 refreshFromSheet();
