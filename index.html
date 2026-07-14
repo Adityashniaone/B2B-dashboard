@@ -12,10 +12,10 @@
     <h1>JCO B2B Demand Dashboard</h1>
     <p class="subtitle">Company visits, demand signals and nest requirements by JCO. Live data from the B2B Demand Google Sheet. Nests required assumes 1 nest per 100 employees.</p>
   </div>
-  <div class="as-of">
-    <div class="label">Data as of</div>
-    <div class="date" id="asOfDate">14-Jul-2026</div>
-  </div>
+<div class="date-badge">
+    <span>Visits Till Date</span>
+    <input type="date" id="as-of-date" onchange="onAsOfChange()">
+</div>
 </div>
 
 <div class="sheet-status" id="sheetStatus">Loading data from /api/master...</div>
