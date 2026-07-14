@@ -178,8 +178,9 @@ function getFiltered(){
 }
 
 function companyMetrics(rows){
+  const completedRows = rows.filter(r => (r.status||"").toLowerCase() === "visited");
   const byCompany = new Map();
-  rows.forEach(r=>{
+  completedRows.forEach(r=>{
     if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nests: r.nests});
   });
   const companiesVisited = byCompany.size;
