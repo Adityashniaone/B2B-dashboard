@@ -1,10 +1,10 @@
 const NEST_RATIO = 100;
 
-// ---- Google Sheet source ----
-// Sheet must be shared as "Anyone with the link – Viewer" for this to work
-// (Google's gviz endpoint is what powers the live fetch below).
-const SHEET_ID = "1dqfRCXkHBNcQ5VUl3RrzI_a5wnJX369BPsLU8GSRGmg";
-const GID = "0";
+// ---- Data source ----
+// Backed by /api/master, a serverless function that reads the B2B Demand
+// sheet server-side via a Google service account and returns an array of
+// row objects keyed by the sheet's exact header text.
+const API_URL = "/api/master";
 
 // Column headers this dashboard understands. Add/adjust aliases here if your
 // sheet's header text differs — matching is case/space/punctuation-insensitive.
@@ -30,91 +30,92 @@ function normalizeHeader(h){
   return (h || "").toString().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function buildFieldMap(colLabels){
-  const normalized = colLabels.map(normalizeHeader);
+// Maps our internal field names to the sheet's actual header text, e.g.
+// { jco: "Assigned JCO", empStrength: "Est. Employee Strength", ... }
+function buildFieldMap(headerKeys){
   const map = {};
   Object.entries(FIELD_ALIASES).forEach(([field, aliases])=>{
-    const idx = normalized.findIndex(n => aliases.includes(n));
-    if(idx !== -1) map[field] = idx;
+    const match = headerKeys.find(h => aliases.includes(normalizeHeader(h)));
+    if(match !== undefined) map[field] = match;
   });
   return map;
 }
 
-function cellText(cell){
-  if(!cell) return "";
-  if(cell.f !== undefined && cell.f !== null) return String(cell.f);
-  if(cell.v !== undefined && cell.v !== null) return String(cell.v);
-  return "";
-}
-
-function cellNumber(cell){
-  if(!cell) return 0;
-  const raw = cell.v;
-  const n = typeof raw === "number" ? raw : parseFloat(cellText(cell).replace(/[^\d.-]/g, ""));
+function toNumber(v){
+  if(v === undefined || v === null || v === "") return 0;
+  const n = typeof v === "number" ? v : parseFloat(String(v).replace(/[^\d.-]/g, ""));
   return isNaN(n) ? 0 : n;
 }
 
-// gviz encodes dates as a literal string like "Date(2026,6,11)" (month is 0-indexed)
-function parseGvizDate(cell){
-  if(!cell) return "";
-  const raw = cell.v;
-  if(typeof raw === "string"){
-    const m = raw.match(/^Date\((\d+),(\d+),(\d+)\)/);
-    if(m){
-      const y = m[1], mo = String(parseInt(m[2],10)+1).padStart(2,"0"), d = String(m[3]).padStart(2,"0");
-      return `${y}-${mo}-${d}`;
+// Sheets API returns dates as the cell's display text (e.g. "11-Jul-26" or
+// "7/11/2026"). Normalize whatever comes back into ISO yyyy-mm-dd.
+function parseFlexibleDate(str){
+  if(!str) return "";
+  const s = String(str).trim();
+
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+
+  let m = s.match(/^(\d{1,2})-([A-Za-z]{3,})-(\d{2,4})$/);
+  if(m){
+    const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const mon = monthNames.indexOf(m[2].slice(0,3).toLowerCase());
+    if(mon !== -1){
+      const day = m[1].padStart(2,"0");
+      let year = m[3];
+      if(year.length === 2) year = (parseInt(year,10) < 70 ? "20" : "19") + year;
+      return `${year}-${String(mon+1).padStart(2,"0")}-${day}`;
     }
   }
-  return cellText(cell);
+
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}`;
+
+  const d = new Date(s);
+  if(!isNaN(d)) return d.toISOString().slice(0,10);
+
+  return s;
 }
 
-function loadSheet(){
-  return new Promise((resolve, reject)=>{
-    const callbackName = "__sheetCallback_" + Date.now();
-    window[callbackName] = function(json){
-      delete window[callbackName];
-      script.remove();
-      resolve(json);
-    };
-    const script = document.createElement("script");
-    script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${callbackName}&gid=${GID}`;
-    script.onerror = function(){
-      delete window[callbackName];
-      script.remove();
-      reject(new Error("Could not reach the sheet. Make sure it's shared as \"Anyone with the link – Viewer\"."));
-    };
-    document.body.appendChild(script);
-  });
+async function loadSheet(){
+  const res = await fetch(API_URL);
+  let json;
+  try{
+    json = await res.json();
+  }catch(e){
+    throw new Error(`${API_URL} did not return valid JSON (status ${res.status}).`);
+  }
+  if(!res.ok){
+    throw new Error(json && json.error ? json.error : `${API_URL} returned status ${res.status}.`);
+  }
+  return json;
 }
 
 function rowsFromSheetJson(json){
-  if(!json || !json.table) throw new Error("Unexpected response from Google Sheets.");
-  const colLabels = json.table.cols.map(c => c.label || c.id || "");
-  const fieldMap = buildFieldMap(colLabels);
+  if(!Array.isArray(json)) throw new Error(`Unexpected response from ${API_URL} — expected an array of rows.`);
+  if(json.length === 0) return [];
 
-  const rows = (json.table.rows || []).map(r=>{
-    const c = r.c || [];
-    const get = (field) => fieldMap[field] !== undefined ? c[fieldMap[field]] : null;
+  const fieldMap = buildFieldMap(Object.keys(json[0]));
 
-    const dateCell = get("date");
-    const record = {
-      date: parseGvizDate(dateCell),
-      day: cellText(get("day")),
-      time: cellText(get("time")),
-      company: cellText(get("company")).trim(),
-      jco: cellText(get("jco")).trim(),
-      location: cellText(get("location")).trim(),
-      spokesperson: cellText(get("spokesperson")).trim(),
-      designation: cellText(get("designation")).trim(),
-      contact: cellText(get("contact")).trim(),
-      status: cellText(get("status")).trim() || "Pending",
-      nextFollowup: cellText(get("nextFollowup")).trim(),
-      remarks: cellText(get("remarks")).trim(),
-      empStrength: cellNumber(get("empStrength")),
-      meetings: cellNumber(get("meetings")),
-      leads: cellNumber(get("leads"))
+  const rows = json.map(rowObj=>{
+    const get = (field) => fieldMap[field] !== undefined ? rowObj[fieldMap[field]] : undefined;
+
+    return {
+      date: parseFlexibleDate(get("date")),
+      day: (get("day") || "").toString().trim(),
+      time: (get("time") || "").toString().trim(),
+      company: (get("company") || "").toString().trim(),
+      jco: (get("jco") || "").toString().trim(),
+      location: (get("location") || "").toString().trim(),
+      spokesperson: (get("spokesperson") || "").toString().trim(),
+      designation: (get("designation") || "").toString().trim(),
+      contact: (get("contact") || "").toString().trim(),
+      status: (get("status") || "").toString().trim() || "Pending",
+      nextFollowup: (get("nextFollowup") || "").toString().trim(),
+      remarks: (get("remarks") || "").toString().trim(),
+      empStrength: toNumber(get("empStrength")),
+      meetings: toNumber(get("meetings")),
+      leads: toNumber(get("leads"))
     };
-    return record;
   }).filter(r => r.company);
 
   return rows;
@@ -338,7 +339,7 @@ function setStatus(msg, type){
 }
 
 async function refreshFromSheet(){
-  setStatus("Loading data from Google Sheet...", "");
+  setStatus("Loading data from /api/master...", "");
   try{
     const json = await loadSheet();
     DATA = rowsFromSheetJson(json);
