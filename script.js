@@ -178,15 +178,16 @@ function getFiltered(){
 }
 
 function companyMetrics(rows){
-  const completedRows = rows.filter(r => (r.status||"").toLowerCase() === "visited");
   const byCompany = new Map();
-  completedRows.forEach(r=>{
-    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nests: r.nests});
+  rows.forEach(r=>{
+    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nests: r.nests, visited: false});
+    if((r.status||"").toLowerCase() === "visited") byCompany.get(r.company).visited = true;
   });
-  const companiesVisited = byCompany.size;
+  const companiesAssigned = byCompany.size;
+  const companiesVisited = [...byCompany.values()].filter(v=>v.visited).length;
   const empStrength = [...byCompany.values()].reduce((s,v)=>s+v.empStrength,0);
   const nests = [...byCompany.values()].reduce((s,v)=>s+v.nests,0);
-  return {companiesVisited, empStrength, nests};
+  return {companiesAssigned, companiesVisited, empStrength, nests};
 }
 function visitMetrics(rows){
   const meetings = rows.reduce((s,r)=>s+r.meetings,0);
@@ -200,6 +201,7 @@ function render(){
   const vm = visitMetrics(rows);
 
   document.getElementById("kpiCompanies").textContent = cm.companiesVisited;
+  document.getElementById("kpiCompaniesFoot").textContent = `of ${cm.companiesAssigned} assigned (PJP)`;
   document.getElementById("kpiEmpStrength").textContent = cm.empStrength.toLocaleString("en-IN");
   document.getElementById("kpiMeetings").textContent = vm.meetings;
   document.getElementById("kpiMeetingsFoot").textContent = `across ${vm.visits} visit${vm.visits!==1?"s":""}`;
@@ -219,6 +221,7 @@ function render(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${jco}</td>
+      <td class="num">${jcm.companiesAssigned}</td>
       <td class="num">${jcm.companiesVisited}</td>
       <td class="num">${jcm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${jvm.meetings}</td>
@@ -233,6 +236,7 @@ function render(){
     totalRow.className = "total-row";
     totalRow.innerHTML = `
       <td>Total (all JCOs)</td>
+      <td class="num">${cm.companiesAssigned}</td>
       <td class="num">${cm.companiesVisited}</td>
       <td class="num">${cm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${vm.meetings}</td>
@@ -361,6 +365,7 @@ async function refreshFromSheet(){
     if(dateInput && !dateInput.value){
       dateInput.value = new Date().toISOString().slice(0,10);
     }
+    if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
 
     setStatus(`Loaded ${DATA.length} visit${DATA.length!==1?"s":""} from the sheet.`, "ok");
     render();
