@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JCO B2B Demand Dashboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="header-row">
+  <div>
+    <div class="eyebrow"><span class="dot"></span> FIELD OPERATIONS</div>
+    <h1>JCO B2B Demand Dashboard</h1>
+    <p class="subtitle">Company visits, demand signals and nest requirements by JCO. Live data from the B2B Demand Google Sheet. Nests required assumes 1 nest per 100 employees.</p>
+  </div>
+  <div class="as-of">
+    <div class="label">Data as of</div>
+    <div class="date" id="asOfDate">14-Jul-2026</div>
+  </div>
+</div>
+
+<div class="sheet-status" id="sheetStatus">Loading data from Google Sheet...</div>
+
+<div class="filters">
+  <div class="filters-grid">
+    <div class="field">
+      <label>Location</label>
+      <select id="f-location"><option value="">All Locations</option></select>
+    </div>
+    <div class="field">
+      <label>Company</label>
+      <select id="f-company"><option value="">All Companies</option></select>
+    </div>
+    <div class="field">
+      <label>Assigned JCO</label>
+      <select id="f-jco"><option value="">All JCOs</option></select>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="f-status"><option value="">All Statuses</option></select>
+    </div>
+    <div class="field">
+      <label>Month</label>
+      <select id="f-month"><option value="">All Months</option></select>
+    </div>
+  </div>
+  <div class="search-row">
+    <div class="field search-field">
+      <label>Search Company / Spokesperson</label>
+      <input type="text" id="f-search" placeholder="e.g. Acme Ltd, Rakesh Sharma...">
+    </div>
+    <div class="btn-row">
+      <button class="btn-reset" id="resetBtn">Reset filters</button>
+      <button class="btn-refresh" id="refreshBtn">Refresh Data</button>
+    </div>
+  </div>
+</div>
+
+<div class="section-label">Total (all JCOs, current filters)</div>
+<div class="kpis">
+  <div class="kpi">
+    <div class="label">Companies Visited</div>
+    <div class="value" id="kpiCompanies">0</div>
+    <div class="foot" id="kpiCompaniesFoot">unique companies</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Est. Employee Strength</div>
+    <div class="value" id="kpiEmpStrength">0</div>
+    <div class="foot">summed across visited companies</div>
+  </div>
+  <div class="kpi">
+    <div class="label">No. of Meetings Done</div>
+    <div class="value" id="kpiMeetings">0</div>
+    <div class="foot" id="kpiMeetingsFoot">across 0 visits</div>
+  </div>
+  <div class="kpi">
+    <div class="label">No. of Leads Received</div>
+    <div class="value" id="kpiLeads">0</div>
+    <div class="foot" id="kpiLeadsFoot">0% of meetings converted</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Approx. Nests Required</div>
+    <div class="value" id="kpiNests">0</div>
+    <div class="foot">1 nest per 100 employees</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>KPIs by JCO</h2>
+    <span class="pill" id="jcoCountPill">0 JCOs</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Assigned JCO</th>
+          <th class="num">Companies Visited</th>
+          <th class="num">Est. Employee Strength</th>
+          <th class="num">Meetings Done</th>
+          <th class="num">Leads Received</th>
+          <th class="num">Approx. Nests Required</th>
+        </tr>
+      </thead>
+      <tbody id="jcoTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panels-row">
+  <div class="panel" style="margin-bottom:0;">
+    <div class="panel-head">
+      <h2>Visit Log</h2>
+      <span class="pill" id="visitCountPill">0 visits</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Date / Company</th>
+            <th>Location</th>
+            <th>Assigned JCO</th>
+            <th class="num">Meetings</th>
+            <th class="num">Leads</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="visitTableBody"></tbody>
+      </table>
+      <div class="empty" id="emptyState" style="display:none;">No visits match the current filters.</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:0;">
+    <div class="panel-head">
+      <h2>Visits by Location</h2>
+      <span class="pill">click to filter</span>
+    </div>
+    <div class="theatre-list" id="locationList"></div>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
