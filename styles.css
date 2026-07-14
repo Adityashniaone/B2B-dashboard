@@ -31,35 +31,41 @@
   .header-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:20px;margin-bottom:26px;}
   h1{font-size:34px;margin:0 0 8px;font-weight:800;color:var(--navy);letter-spacing:-0.5px;}
   .subtitle{color:var(--text-2);font-size:14.5px;max-width:600px;line-height:1.5;margin:0;}
-  .as-of{
-    background:var(--navy);color:#fff;border-radius:10px;padding:14px 20px;
-    text-align:center;min-width:170px;
-  }
-  .as-of .label{font-size:10.5px;letter-spacing:1px;color:#a9c0e8;text-transform:uppercase;margin-bottom:4px;}
 .date-badge{
     background:#0B3D6B;color:#fff;border-radius:10px;padding:14px 20px;
     text-align:center;min-width:170px;
 }
-.date-badge input#as-of-date{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:6px;
-  width:100%;
-  appearance:none;
-  -webkit-appearance:none;
-  background:transparent;
-  border:none;
-  color:#fcfcfc;
-  font-family:'JetBrains Mono', monospace;
-  font-size:13px;
-  font-weight:600;
-  padding:0;
-  cursor:pointer;
-  outline:none;
-  color-scheme:dark;
-  text-align:center;
+.date-badge{ position:relative; }
+.as-of-trigger{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  cursor:pointer; color:#fff; font-family:'JetBrains Mono', monospace;
+  font-size:13px; font-weight:600;
 }
+.cal-popup{
+  display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  z-index:50; margin-top:8px; background:#fff; border-radius:14px;
+  box-shadow:0 12px 32px rgba(11,61,107,0.18); padding:16px; width:260px;
+  font-family:'Inter', sans-serif; text-align:left;
+}
+.cal-popup.open{ display:block; }
+.cal-title{ font-size:11px; font-weight:700; color:#64758C; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; display:block; }
+.cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.cal-nav-btn{ background:none; border:none; font-size:16px; color:#0B3D6B; cursor:pointer; padding:4px 8px; border-radius:6px; }
+.cal-nav-btn:hover{ background:#EAF2FB; }
+.cal-month-label{ font-weight:700; color:#0B3D6B; font-size:13px; }
+.cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:#64758C; font-weight:600; margin-bottom:4px; }
+.cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-day{
+  border:none; background:none; padding:6px 0; font-size:12px; color:#122542;
+  border-radius:50%; cursor:pointer; font-family:'JetBrains Mono', monospace;
+}
+.cal-day:hover{ background:#EAF2FB; }
+.cal-day.selected{ background:#0B3D6B; color:#fff; font-weight:700; }
+.cal-day.today:not(.selected){ border:1px solid #2F6FB0; }
+.cal-day.empty{ cursor:default; }
+.cal-footer{ display:flex; justify-content:space-between; margin-top:12px; border-top:1px solid #D9E5F4; padding-top:10px; }
+.cal-link{ background:none; border:none; color:#2F6FB0; font-size:12px; font-weight:600; cursor:pointer; }
+
   .filters{
     background:var(--card);border:1px solid var(--border);border-radius:14px;
     padding:20px 24px;margin-bottom:24px;
