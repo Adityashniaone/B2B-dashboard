@@ -163,8 +163,10 @@ function getFiltered(){
   const status = document.getElementById("f-status").value;
   const month = document.getElementById("f-month").value;
   const search = document.getElementById("f-search").value.trim().toLowerCase();
+  const asOf = document.getElementById("as-of-date").value;
 
   return DATA.filter(d=>{
+    if(asOf && d.date > asOf) return false;
     if(location && d.location!==location) return false;
     if(company && d.company!==company) return false;
     if(jco && d.jco!==jco) return false;
@@ -332,6 +334,10 @@ function bindFilterEvents(){
   document.getElementById("refreshBtn").addEventListener("click", refreshFromSheet);
 }
 
+function onAsOfChange(){
+  render();
+}
+
 function setStatus(msg, type){
   const el = document.getElementById("sheetStatus");
   el.textContent = msg;
@@ -350,8 +356,10 @@ async function refreshFromSheet(){
     populateSelect("f-status", uniqueSorted(DATA.map(d=>d.status)));
     populateSelect("f-month", uniqueSorted(DATA.map(d=>monthKey(d.date))));
 
-    const today = new Date();
-    document.getElementById("asOfDate").textContent = fmtDate(today.toISOString().slice(0,10));
+    const dateInput = document.getElementById("as-of-date");
+    if(dateInput && !dateInput.value){
+      dateInput.value = new Date().toISOString().slice(0,10);
+    }
 
     setStatus(`Loaded ${DATA.length} visit${DATA.length!==1?"s":""} from the sheet.`, "ok");
     render();
