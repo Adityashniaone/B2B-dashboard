@@ -36,8 +36,26 @@
     text-align:center;min-width:170px;
   }
   .as-of .label{font-size:10.5px;letter-spacing:1px;color:#a9c0e8;text-transform:uppercase;margin-bottom:4px;}
-  .as-of .date{font-size:15px;font-weight:700;}
-
+.date-badge input#as-of-date{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  width:100%;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent;
+  border:none;
+  color:#fff;
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px;
+  font-weight:600;
+  padding:0;
+  cursor:pointer;
+  outline:none;
+  color-scheme:dark;
+  text-align:center;
+}
   .filters{
     background:var(--card);border:1px solid var(--border);border-radius:14px;
     padding:20px 24px;margin-bottom:24px;
