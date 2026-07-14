@@ -1,5 +1,3 @@
-const NEST_RATIO = 100;
-
 // ---- Data source ----
 // Backed by /api/master, a serverless function that reads the B2B Demand
 // sheet server-side via a Google service account and returns an array of
@@ -23,7 +21,8 @@ const FIELD_ALIASES = {
   remarks: ["remarks"],
   empStrength: ["estemployeestrength", "employeestrength", "empstrength"],
   meetings: ["noofmeetingsdone", "meetingsdone", "meetings"],
-  leads: ["noofleadsreceived", "leadsreceived", "leads"]
+  leads: ["noofleadsreceived", "leadsreceived", "leads"],
+  nests: ["approxnestsrequired", "nestsrequired", "nests"]
 };
 
 function normalizeHeader(h){
@@ -114,7 +113,8 @@ function rowsFromSheetJson(json){
       remarks: (get("remarks") || "").toString().trim(),
       empStrength: toNumber(get("empStrength")),
       meetings: toNumber(get("meetings")),
-      leads: toNumber(get("leads"))
+      leads: toNumber(get("leads")),
+      nests: toNumber(get("nests"))
     };
   }).filter(r => r.company);
 
@@ -180,11 +180,11 @@ function getFiltered(){
 function companyMetrics(rows){
   const byCompany = new Map();
   rows.forEach(r=>{
-    if(!byCompany.has(r.company)) byCompany.set(r.company, r.empStrength);
+    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nests: r.nests});
   });
   const companiesVisited = byCompany.size;
-  const empStrength = [...byCompany.values()].reduce((s,v)=>s+v,0);
-  const nests = [...byCompany.values()].reduce((s,v)=>s+Math.ceil(v/NEST_RATIO),0);
+  const empStrength = [...byCompany.values()].reduce((s,v)=>s+v.empStrength,0);
+  const nests = [...byCompany.values()].reduce((s,v)=>s+v.nests,0);
   return {companiesVisited, empStrength, nests};
 }
 function visitMetrics(rows){
