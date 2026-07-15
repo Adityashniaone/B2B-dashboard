@@ -1,11 +1,5 @@
-// ---- Data source ----
-// Backed by /api/master, a serverless function that reads the B2B Demand
-// sheet server-side via a Google service account and returns an array of
-// row objects keyed by the sheet's exact header text.
 const API_URL = "/api/master";
 
-// Column headers this dashboard understands. Add/adjust aliases here if your
-// sheet's header text differs — matching is case/space/punctuation-insensitive.
 const FIELD_ALIASES = {
   date: ["date"],
   day: ["day"],
@@ -21,8 +15,7 @@ const FIELD_ALIASES = {
   remarks: ["remarks"],
   empStrength: ["estemployeestrength", "employeestrength", "empstrength"],
   meetings: ["noofmeetingsdone", "meetingsdone", "meetings"],
-  leads: ["noofleadsreceived", "leadsreceived", "leads"],
-  nests: ["approxnestsrequired", "nestsrequired", "nests"]
+  leads: ["noofleadsreceived", "leadsreceived", "leads"]
 };
 
 function normalizeHeader(h){
@@ -74,6 +67,81 @@ function parseFlexibleDate(str){
 
   return s;
 }
+(function(){
+  const trigger = document.getElementById("as-of-trigger");
+  const popup = document.getElementById("cal-popup");
+  const display = document.getElementById("as-of-display");
+  const hiddenInput = document.getElementById("as-of-date");
+  let viewDate = new Date();
+
+  function isoToDate(iso){ return iso ? new Date(iso+"T00:00:00") : new Date(); }
+  function dateToIso(d){ return d.toISOString().slice(0,10); }
+  function fmtDisplay(iso){
+    if(!iso) return "All dates";
+    const d = isoToDate(iso);
+    return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
+  }
+
+  function renderCalendar(){
+    const year = viewDate.getFullYear(), month = viewDate.getMonth();
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const selectedIso = hiddenInput.value;
+    const todayIso = new Date().toISOString().slice(0,10);
+
+    let html = `<span class="cal-title">Jump to a date</span>
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="cal-prev">&#8249;</button>
+        <span class="cal-month-label">${monthNames[month]} ${year}</span>
+        <button class="cal-nav-btn" id="cal-next">&#8250;</button>
+      </div>
+      <div class="cal-weekdays">${["S","M","T","W","T","F","S"].map(d=>`<span>${d}</span>`).join("")}</div>
+      <div class="cal-days">`;
+    for(let i=0;i<firstDay;i++) html += `<span class="cal-day empty"></span>`;
+    for(let day=1; day<=daysInMonth; day++){
+      const iso = dateToIso(new Date(year, month, day));
+      const cls = ["cal-day"];
+      if(iso === selectedIso) cls.push("selected");
+      if(iso === todayIso) cls.push("today");
+      html += `<button class="${cls.join(" ")}" data-date="${iso}">${day}</button>`;
+    }
+    html += `</div>
+      <div class="cal-footer">
+        <button class="cal-link" id="cal-clear">Clear</button>
+        <button class="cal-link" id="cal-today">Today</button>
+      </div>`;
+    popup.innerHTML = html;
+
+    document.getElementById("cal-prev").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()-1); renderCalendar(); };
+    document.getElementById("cal-next").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()+1); renderCalendar(); };
+    document.getElementById("cal-today").onclick = ()=> selectDate(new Date().toISOString().slice(0,10));
+    document.getElementById("cal-clear").onclick = ()=> selectDate("");
+    popup.querySelectorAll(".cal-day:not(.empty)").forEach(btn=>{
+      btn.onclick = ()=> selectDate(btn.dataset.date);
+    });
+  }
+
+  function selectDate(iso){
+    hiddenInput.value = iso;
+    display.textContent = fmtDisplay(iso);
+    popup.classList.remove("open");
+    if(iso) viewDate = isoToDate(iso);
+    onAsOfChange();
+  }
+
+  trigger.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    viewDate = isoToDate(hiddenInput.value || new Date().toISOString().slice(0,10));
+    renderCalendar();
+    popup.classList.toggle("open");
+  });
+  document.addEventListener("click", (e)=>{
+    if(!popup.contains(e.target) && !trigger.contains(e.target)) popup.classList.remove("open");
+  });
+
+  window.refreshAsOfDisplay = function(){ display.textContent = fmtDisplay(hiddenInput.value); };
+})();
 
 async function loadSheet(){
   const res = await fetch(API_URL);
@@ -113,8 +181,7 @@ function rowsFromSheetJson(json){
       remarks: (get("remarks") || "").toString().trim(),
       empStrength: toNumber(get("empStrength")),
       meetings: toNumber(get("meetings")),
-      leads: toNumber(get("leads")),
-      nests: toNumber(get("nests"))
+      leads: toNumber(get("leads"))
     };
   }).filter(r => r.company);
 
@@ -166,28 +233,31 @@ function getFiltered(){
   const asOf = document.getElementById("as-of-date").value;
 
   return DATA.filter(d=>{
-    if(asOf && d.date > asOf) return false;
     if(location && d.location!==location) return false;
     if(company && d.company!==company) return false;
     if(jco && d.jco!==jco) return false;
     if(status && d.status!==status) return false;
     if(month && monthKey(d.date)!==month) return false;
     if(search && !(d.company.toLowerCase().includes(search) || d.spokesperson.toLowerCase().includes(search))) return false;
+    if(asOf && d.date && d.date > asOf) return false;
     return true;
   });
+}
+
+// Called by the calendar popup whenever the "Visits Till Date" value changes.
+function onAsOfChange(){
+  render();
 }
 
 function companyMetrics(rows){
   const byCompany = new Map();
   rows.forEach(r=>{
-    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nests: r.nests, visited: false});
-    if((r.status||"").toLowerCase() === "visited") byCompany.get(r.company).visited = true;
+    if(!byCompany.has(r.company)) byCompany.set(r.company, r.empStrength);
   });
-  const companiesAssigned = byCompany.size;
-  const companiesVisited = [...byCompany.values()].filter(v=>v.visited).length;
-  const empStrength = [...byCompany.values()].reduce((s,v)=>s+v.empStrength,0);
-  const nests = [...byCompany.values()].reduce((s,v)=>s+v.nests,0);
-  return {companiesAssigned, companiesVisited, empStrength, nests};
+  const companiesVisited = byCompany.size;
+  const empStrength = [...byCompany.values()].reduce((s,v)=>s+v,0);
+  const nests = [...byCompany.values()].reduce((s,v)=>s+Math.ceil(v/NEST_RATIO),0);
+  return {companiesVisited, empStrength, nests};
 }
 function visitMetrics(rows){
   const meetings = rows.reduce((s,r)=>s+r.meetings,0);
@@ -201,7 +271,6 @@ function render(){
   const vm = visitMetrics(rows);
 
   document.getElementById("kpiCompanies").textContent = cm.companiesVisited;
-  document.getElementById("kpiCompaniesFoot").textContent = `of ${cm.companiesAssigned} assigned (PJP)`;
   document.getElementById("kpiEmpStrength").textContent = cm.empStrength.toLocaleString("en-IN");
   document.getElementById("kpiMeetings").textContent = vm.meetings;
   document.getElementById("kpiMeetingsFoot").textContent = `across ${vm.visits} visit${vm.visits!==1?"s":""}`;
@@ -221,7 +290,6 @@ function render(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${jco}</td>
-      <td class="num">${jcm.companiesAssigned}</td>
       <td class="num">${jcm.companiesVisited}</td>
       <td class="num">${jcm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${jvm.meetings}</td>
@@ -236,7 +304,6 @@ function render(){
     totalRow.className = "total-row";
     totalRow.innerHTML = `
       <td>Total (all JCOs)</td>
-      <td class="num">${cm.companiesAssigned}</td>
       <td class="num">${cm.companiesVisited}</td>
       <td class="num">${cm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${vm.meetings}</td>
@@ -333,14 +400,12 @@ function bindFilterEvents(){
       document.getElementById(id).value = "";
     });
     document.getElementById("f-search").value = "";
+    document.getElementById("as-of-date").value = "";
+    if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
     locationFilterOverride = "";
     render();
   });
   document.getElementById("refreshBtn").addEventListener("click", refreshFromSheet);
-}
-
-function onAsOfChange(){
-  render();
 }
 
 function setStatus(msg, type){
@@ -361,9 +426,9 @@ async function refreshFromSheet(){
     populateSelect("f-status", uniqueSorted(DATA.map(d=>d.status)));
     populateSelect("f-month", uniqueSorted(DATA.map(d=>monthKey(d.date))));
 
-    const dateInput = document.getElementById("as-of-date");
-    if(dateInput && !dateInput.value){
-      dateInput.value = new Date().toISOString().slice(0,10);
+    const asOfInput = document.getElementById("as-of-date");
+    if(!asOfInput.value){
+      asOfInput.value = new Date().toISOString().slice(0,10);
     }
     if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
 
@@ -373,121 +438,6 @@ async function refreshFromSheet(){
     setStatus(err.message || "Could not load the sheet.", "error");
   }
 }
-
-// ---- "Visits Till Date" calendar popup ----
-let calendarViewDate = new Date();
-
-function pad2(n){ return String(n).padStart(2,"0"); }
-function isoToday(){
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-}
-
-function refreshAsOfDisplay(){
-  const iso = document.getElementById("as-of-date").value;
-  document.getElementById("as-of-display").textContent = iso ? fmtDate(iso) : "--";
-}
-window.refreshAsOfDisplay = refreshAsOfDisplay;
-
-function renderCalendarPopup(){
-  const popup = document.getElementById("cal-popup");
-  const selectedISO = document.getElementById("as-of-date").value;
-  const year = calendarViewDate.getFullYear();
-  const month = calendarViewDate.getMonth();
-  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const todayISO = isoToday();
-
-  let daysHtml = "";
-  for(let i=0;i<firstDay;i++){
-    daysHtml += `<button type="button" class="cal-day empty" disabled></button>`;
-  }
-  for(let day=1; day<=daysInMonth; day++){
-    const iso = `${year}-${pad2(month+1)}-${pad2(day)}`;
-    const classes = ["cal-day"];
-    if(iso===selectedISO) classes.push("selected");
-    if(iso===todayISO) classes.push("today");
-    daysHtml += `<button type="button" class="${classes.join(" ")}" data-iso="${iso}">${day}</button>`;
-  }
-
-  popup.innerHTML = `
-    <span class="cal-title">Visits Till Date</span>
-    <div class="cal-nav">
-      <button type="button" class="cal-nav-btn" id="cal-prev">&#8249;</button>
-      <span class="cal-month-label">${monthNames[month]} ${year}</span>
-      <button type="button" class="cal-nav-btn" id="cal-next">&#8250;</button>
-    </div>
-    <div class="cal-weekdays">
-      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
-    </div>
-    <div class="cal-days">${daysHtml}</div>
-    <div class="cal-footer">
-      <button type="button" class="cal-link" id="cal-today">Today</button>
-      <button type="button" class="cal-link" id="cal-clear">Clear</button>
-    </div>
-  `;
-
-  popup.querySelector("#cal-prev").addEventListener("click", (e)=>{
-    e.stopPropagation();
-    calendarViewDate = new Date(year, month-1, 1);
-    renderCalendarPopup();
-  });
-  popup.querySelector("#cal-next").addEventListener("click", (e)=>{
-    e.stopPropagation();
-    calendarViewDate = new Date(year, month+1, 1);
-    renderCalendarPopup();
-  });
-  popup.querySelectorAll(".cal-day[data-iso]").forEach(btn=>{
-    btn.addEventListener("click", (e)=>{
-      e.stopPropagation();
-      document.getElementById("as-of-date").value = btn.dataset.iso;
-      refreshAsOfDisplay();
-      closeCalendar();
-      onAsOfChange();
-    });
-  });
-  popup.querySelector("#cal-today").addEventListener("click", (e)=>{
-    e.stopPropagation();
-    const t = isoToday();
-    document.getElementById("as-of-date").value = t;
-    calendarViewDate = new Date();
-    refreshAsOfDisplay();
-    closeCalendar();
-    onAsOfChange();
-  });
-  popup.querySelector("#cal-clear").addEventListener("click", (e)=>{
-    e.stopPropagation();
-    document.getElementById("as-of-date").value = "";
-    refreshAsOfDisplay();
-    closeCalendar();
-    onAsOfChange();
-  });
-}
-
-function openCalendar(){
-  const popup = document.getElementById("cal-popup");
-  const selectedISO = document.getElementById("as-of-date").value;
-  calendarViewDate = selectedISO ? new Date(selectedISO+"T00:00:00") : new Date();
-  renderCalendarPopup();
-  popup.classList.add("open");
-}
-function closeCalendar(){
-  document.getElementById("cal-popup").classList.remove("open");
-}
-
-document.getElementById("as-of-trigger").addEventListener("click", (e)=>{
-  e.stopPropagation();
-  const popup = document.getElementById("cal-popup");
-  if(popup.classList.contains("open")) closeCalendar();
-  else openCalendar();
-});
-document.addEventListener("click", (e)=>{
-  const badge = document.querySelector(".date-badge");
-  if(badge && !badge.contains(e.target)) closeCalendar();
-});
-
-refreshAsOfDisplay();
 
 bindFilterEvents();
 refreshFromSheet();
