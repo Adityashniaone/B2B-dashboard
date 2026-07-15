@@ -43,27 +43,29 @@
 }
 .cal-popup{
   display:none; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  z-index:50; margin-top:8px; background:#fff; border-radius:14px;
-  box-shadow:0 12px 32px rgba(11,61,107,0.18); padding:16px; width:260px;
+  z-index:50; margin-top:8px; background:#fff; border-radius:16px;
+  box-shadow:0 12px 32px rgba(11,61,107,0.18); padding:18px; width:284px;
   font-family:'Inter', sans-serif; text-align:left;
 }
 .cal-popup.open{ display:block; }
-.cal-title{ font-size:11px; font-weight:700; color:#64758C; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; display:block; }
-.cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.cal-title{ font-size:14px; font-weight:700; color:#0B2B5C; margin-bottom:14px; display:block; }
+.cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .cal-nav-btn{ background:none; border:none; font-size:16px; color:#0B3D6B; cursor:pointer; padding:4px 8px; border-radius:6px; }
 .cal-nav-btn:hover{ background:#EAF2FB; }
 .cal-month-label{ font-weight:700; color:#0B3D6B; font-size:13px; }
-.cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:#64758C; font-weight:600; margin-bottom:4px; }
-.cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:#64758C; font-weight:700; margin-bottom:6px; }
+.cal-days{ display:grid; grid-template-columns:repeat(7, 1fr); grid-auto-rows:32px; gap:4px; }
 .cal-day{
-  border:none; background:none; padding:6px 0; font-size:12px; color:#122542;
-  border-radius:50%; cursor:pointer; font-family:'JetBrains Mono', monospace;
+  box-sizing:border-box; width:100%; height:32px;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid #D9E5F4; background:#F5F9FE; padding:0; font-size:12px; color:#122542;
+  border-radius:8px; cursor:pointer; font-family:'JetBrains Mono', monospace;
 }
-.cal-day:hover{ background:#EAF2FB; }
-.cal-day.selected{ background:#0B3D6B; color:#fff; font-weight:700; }
-.cal-day.today:not(.selected){ border:1px solid #2F6FB0; }
-.cal-day.empty{ cursor:default; }
-.cal-footer{ display:flex; justify-content:space-between; margin-top:12px; border-top:1px solid #D9E5F4; padding-top:10px; }
+.cal-day:hover{ background:#EAF2FB; border-color:#B7CDEB; }
+.cal-day.selected{ background:#0B3D6B; border-color:#0B3D6B; color:#fff; font-weight:700; }
+.cal-day.today:not(.selected){ border:1.5px solid #2F6FB0; background:#fff; font-weight:700; color:#0B3D6B; }
+.cal-day.empty{ cursor:default; background:transparent; border:none; }
+.cal-footer{ display:flex; justify-content:space-between; margin-top:14px; border-top:1px solid #D9E5F4; padding-top:10px; }
 .cal-link{ background:none; border:none; color:#2F6FB0; font-size:12px; font-weight:600; cursor:pointer; }
 
   .filters{
