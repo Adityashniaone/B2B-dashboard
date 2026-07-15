@@ -216,11 +216,18 @@ function monthKey(iso){
   return months[d.getMonth()]+" "+d.getFullYear();
 }
 function statusClass(s){
-  const v = (s||"").toLowerCase();
+  const v = (s||"").toLowerCase().trim();
   if(v==="completed") return "completed";
   if(v==="scheduled") return "scheduled";
   if(v.includes("follow")) return "followup";
+  if(v==="not visited") return "followup";
+  if(v==="visited") return "completed";
   return "pending";
+}
+
+// True only for rows where the company was actually visited (not just scheduled).
+function isVisited(status){
+  return (status||"").trim().toLowerCase() === "visited";
 }
 function uniqueSorted(arr){ return [...new Set(arr.filter(Boolean))].sort(); }
 
@@ -284,8 +291,9 @@ function visitMetrics(rows){
 
 function render(){
   const rows = getFiltered();
-  const cm = companyMetrics(rows);
-  const vm = visitMetrics(rows);
+  const visitedRows = rows.filter(r=>isVisited(r.status));
+  const cm = companyMetrics(visitedRows);
+  const vm = visitMetrics(visitedRows);
 
   document.getElementById("kpiCompanies").textContent = cm.companiesVisited;
   document.getElementById("kpiEmpStrength").textContent = cm.empStrength.toLocaleString("en-IN");
@@ -301,7 +309,7 @@ function render(){
   document.getElementById("jcoCountPill").textContent = `${jcos.length} JCO${jcos.length!==1?"s":""}`;
 
   jcos.forEach(jco=>{
-    const jcoRows = rows.filter(r=>r.jco===jco);
+    const jcoRows = visitedRows.filter(r=>r.jco===jco);
     const jcm = companyMetrics(jcoRows);
     const jvm = visitMetrics(jcoRows);
     const tr = document.createElement("tr");
