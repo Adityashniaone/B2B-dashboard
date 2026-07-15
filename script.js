@@ -76,6 +76,12 @@ function parseFlexibleDate(str){
 
   return s;
 }
+
+// ================================
+// "Visits Till Date" calendar —
+// supports Today / MTD / a specific
+// date / All dates. Opens on Today.
+// ================================
 (function(){
   const trigger = document.getElementById("as-of-trigger");
   const popup = document.getElementById("cal-popup");
@@ -85,10 +91,20 @@ function parseFlexibleDate(str){
 
   function isoToDate(iso){ return iso ? new Date(iso+"T00:00:00") : new Date(); }
   function dateToIso(d){ return d.toISOString().slice(0,10); }
-  function fmtDisplay(iso){
-    if(!iso) return "All dates";
+  function todayIso(){ return new Date().toISOString().slice(0,10); }
+  function ddmmyyyy(iso){
     const d = isoToDate(iso);
     return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
+  }
+  function fmtDisplay(mode, iso){
+    if(mode === "today") return `Today (${ddmmyyyy(iso)})`;
+    if(mode === "mtd"){
+      const d = isoToDate(iso);
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `MTD (${monthNames[d.getMonth()]} ${d.getFullYear()})`;
+    }
+    if(mode === "date") return ddmmyyyy(iso);
+    return "All dates";
   }
 
   function renderCalendar(){
@@ -97,7 +113,8 @@ function parseFlexibleDate(str){
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month+1, 0).getDate();
     const selectedIso = hiddenInput.value;
-    const todayIso = new Date().toISOString().slice(0,10);
+    const currentMode = hiddenInput.dataset.mode || "today";
+    const tIso = todayIso();
 
     let html = `<span class="cal-title">Jump to a date</span>
       <div class="cal-nav">
@@ -111,37 +128,53 @@ function parseFlexibleDate(str){
     for(let day=1; day<=daysInMonth; day++){
       const iso = dateToIso(new Date(year, month, day));
       const cls = ["cal-day"];
-      if(iso === selectedIso) cls.push("selected");
-      if(iso === todayIso) cls.push("today");
+      if(iso === selectedIso && currentMode !== "all") cls.push("selected");
+      if(iso === tIso) cls.push("today");
       html += `<button class="${cls.join(" ")}" data-date="${iso}">${day}</button>`;
     }
     html += `</div>
       <div class="cal-footer">
         <button class="cal-link" id="cal-clear">Clear</button>
-        <button class="cal-link" id="cal-today">Today</button>
+        <button class="cal-link${currentMode==='today' ? ' active' : ''}" id="cal-today">Today</button>
+        <button class="cal-link${currentMode==='mtd' ? ' active' : ''}" id="cal-mtd">MTD</button>
       </div>`;
     popup.innerHTML = html;
 
     document.getElementById("cal-prev").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()-1); renderCalendar(); };
     document.getElementById("cal-next").onclick = ()=>{ viewDate.setMonth(viewDate.getMonth()+1); renderCalendar(); };
-    document.getElementById("cal-today").onclick = ()=> selectDate(new Date().toISOString().slice(0,10));
-    document.getElementById("cal-clear").onclick = ()=> selectDate("");
+    document.getElementById("cal-today").onclick = ()=> selectMode("today", todayIso());
+    document.getElementById("cal-mtd").onclick = ()=> selectMode("mtd", todayIso());
+    document.getElementById("cal-clear").onclick = ()=> selectMode("all", "");
     popup.querySelectorAll(".cal-day:not(.empty)").forEach(btn=>{
-      btn.onclick = ()=> selectDate(btn.dataset.date);
+      btn.onclick = ()=> selectMode("date", btn.dataset.date);
     });
   }
 
-  function selectDate(iso){
-    hiddenInput.value = iso;
-    display.textContent = fmtDisplay(iso);
+  function selectMode(mode, iso){
+    hiddenInput.dataset.mode = mode;
+    hiddenInput.value = iso || "";
+    display.textContent = fmtDisplay(mode, iso);
     popup.classList.remove("open");
     if(iso) viewDate = isoToDate(iso);
     onAsOfChange();
   }
 
+  // Dashboard always opens on "Today" the first time it loads.
+  window.setAsOfDefault = function(){
+    if(!hiddenInput.dataset.mode) selectMode("today", todayIso());
+  };
+  // Used by "Reset filters" to force back to Today regardless of current mode.
+  window.resetAsOfToToday = function(){
+    selectMode("today", todayIso());
+  };
+  // Read by getFiltered() to know which date rule to apply.
+  window.getAsOfFilter = function(){
+    return { mode: hiddenInput.dataset.mode || "today", date: hiddenInput.value || todayIso() };
+  };
+
   trigger.addEventListener("click", (e)=>{
     e.stopPropagation();
-    viewDate = isoToDate(hiddenInput.value || new Date().toISOString().slice(0,10));
+    viewDate = isoToDate(hiddenInput.value || todayIso());
     renderCalendar();
     popup.classList.toggle("open");
   });
@@ -149,7 +182,9 @@ function parseFlexibleDate(str){
     if(!popup.contains(e.target) && !trigger.contains(e.target)) popup.classList.remove("open");
   });
 
-  window.refreshAsOfDisplay = function(){ display.textContent = fmtDisplay(hiddenInput.value); };
+  window.refreshAsOfDisplay = function(){
+    display.textContent = fmtDisplay(hiddenInput.dataset.mode || "today", hiddenInput.value || todayIso());
+  };
 })();
 
 async function loadSheet(){
@@ -251,7 +286,7 @@ function getFiltered(){
   const status = document.getElementById("f-status").value;
   const month = document.getElementById("f-month").value;
   const search = document.getElementById("f-search").value.trim().toLowerCase();
-  const asOf = document.getElementById("as-of-date").value;
+  const asOf = window.getAsOfFilter ? window.getAsOfFilter() : { mode: "today", date: new Date().toISOString().slice(0,10) };
 
   return DATA.filter(d=>{
     if(location && d.location!==location) return false;
@@ -260,7 +295,15 @@ function getFiltered(){
     if(status && d.status!==status) return false;
     if(month && monthKey(d.date)!==month) return false;
     if(search && !(d.company.toLowerCase().includes(search) || d.spokesperson.toLowerCase().includes(search))) return false;
-    if(asOf && d.date !== asOf) return false;
+
+    if(asOf.mode === "today" || asOf.mode === "date"){
+      if(d.date !== asOf.date) return false;
+    }else if(asOf.mode === "mtd"){
+      if(monthKey(d.date) !== monthKey(asOf.date)) return false;
+      if(d.date > asOf.date) return false;
+    }
+    // mode "all" -> no date restriction
+
     return true;
   });
 }
@@ -270,30 +313,39 @@ function onAsOfChange(){
   render();
 }
 
+// rows = every scheduled row in scope (any status) — used for "Companies Assigned"
+// and to derive the actually-visited subset for the rest of the metrics.
 function companyMetrics(rows){
-  const byCompany = new Map();
+  const byAssigned = new Map();
   rows.forEach(r=>{
-    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nestsManual: r.nestsManual});
+    if(!byAssigned.has(r.company)) byAssigned.set(r.company, r);
   });
-  const companiesVisited = byCompany.size;
+  const companiesAssigned = byAssigned.size;
+
+  const visitedRows = rows.filter(r=>isVisited(r.status));
+  const byVisited = new Map();
+  visitedRows.forEach(r=>{
+    if(!byVisited.has(r.company)) byVisited.set(r.company, {empStrength: r.empStrength, nestsManual: r.nestsManual});
+  });
+  const companiesVisited = byVisited.size;
   let empStrength = 0, nests = 0;
-  byCompany.forEach(v=>{
+  byVisited.forEach(v=>{
     empStrength += v.empStrength;
     nests += (v.nestsManual !== null && v.nestsManual > 0) ? v.nestsManual : Math.ceil(v.empStrength/NEST_RATIO);
   });
-  return {companiesVisited, empStrength, nests};
+  return {companiesAssigned, companiesVisited, empStrength, nests};
 }
 function visitMetrics(rows){
-  const meetings = rows.reduce((s,r)=>s+r.meetings,0);
-  const leads = rows.reduce((s,r)=>s+r.leads,0);
-  return {meetings, leads, visits: rows.length};
+  const visitedRows = rows.filter(r=>isVisited(r.status));
+  const meetings = visitedRows.reduce((s,r)=>s+r.meetings,0);
+  const leads = visitedRows.reduce((s,r)=>s+r.leads,0);
+  return {meetings, leads, visits: visitedRows.length};
 }
 
 function render(){
   const rows = getFiltered();
-  const visitedRows = rows.filter(r=>isVisited(r.status));
-  const cm = companyMetrics(visitedRows);
-  const vm = visitMetrics(visitedRows);
+  const cm = companyMetrics(rows);
+  const vm = visitMetrics(rows);
 
   document.getElementById("kpiCompanies").textContent = cm.companiesVisited;
   document.getElementById("kpiEmpStrength").textContent = cm.empStrength.toLocaleString("en-IN");
@@ -309,12 +361,13 @@ function render(){
   document.getElementById("jcoCountPill").textContent = `${jcos.length} JCO${jcos.length!==1?"s":""}`;
 
   jcos.forEach(jco=>{
-    const jcoRows = visitedRows.filter(r=>r.jco===jco);
+    const jcoRows = rows.filter(r=>r.jco===jco);
     const jcm = companyMetrics(jcoRows);
     const jvm = visitMetrics(jcoRows);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${jco}</td>
+      <td class="num">${jcm.companiesAssigned}</td>
       <td class="num">${jcm.companiesVisited}</td>
       <td class="num">${jcm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${jvm.meetings}</td>
@@ -329,6 +382,7 @@ function render(){
     totalRow.className = "total-row";
     totalRow.innerHTML = `
       <td>Total (all JCOs)</td>
+      <td class="num">${cm.companiesAssigned}</td>
       <td class="num">${cm.companiesVisited}</td>
       <td class="num">${cm.empStrength.toLocaleString("en-IN")}</td>
       <td class="num">${vm.meetings}</td>
@@ -425,8 +479,7 @@ function bindFilterEvents(){
       document.getElementById(id).value = "";
     });
     document.getElementById("f-search").value = "";
-    document.getElementById("as-of-date").value = "";
-    if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
+    if(window.resetAsOfToToday) window.resetAsOfToToday();
     locationFilterOverride = "";
     render();
   });
@@ -451,6 +504,7 @@ async function refreshFromSheet(){
     populateSelect("f-status", uniqueSorted(DATA.map(d=>d.status)));
     populateSelect("f-month", uniqueSorted(DATA.map(d=>monthKey(d.date))));
 
+    if(window.setAsOfDefault) window.setAsOfDefault(); // opens on Today the first time only
     if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
 
     setStatus(`Loaded ${DATA.length} visit${DATA.length!==1?"s":""} from the sheet.`, "ok");
