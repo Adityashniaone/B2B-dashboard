@@ -253,7 +253,7 @@ function getFiltered(){
     if(status && d.status!==status) return false;
     if(month && monthKey(d.date)!==month) return false;
     if(search && !(d.company.toLowerCase().includes(search) || d.spokesperson.toLowerCase().includes(search))) return false;
-    if(asOf && d.date && d.date > asOf) return false;
+    if(asOf && d.date !== asOf) return false;
     return true;
   });
 }
@@ -443,10 +443,6 @@ async function refreshFromSheet(){
     populateSelect("f-status", uniqueSorted(DATA.map(d=>d.status)));
     populateSelect("f-month", uniqueSorted(DATA.map(d=>monthKey(d.date))));
 
-    const asOfInput = document.getElementById("as-of-date");
-    if(!asOfInput.value){
-      asOfInput.value = new Date().toISOString().slice(0,10);
-    }
     if(window.refreshAsOfDisplay) window.refreshAsOfDisplay();
 
     setStatus(`Loaded ${DATA.length} visit${DATA.length!==1?"s":""} from the sheet.`, "ok");
