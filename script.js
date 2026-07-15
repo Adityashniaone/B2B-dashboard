@@ -1,5 +1,13 @@
+const NEST_RATIO = 100;
+
+// ---- Data source ----
+// Backed by /api/master, a serverless function that reads the B2B Demand
+// sheet server-side via a Google service account and returns an array of
+// row objects keyed by the sheet's exact header text.
 const API_URL = "/api/master";
 
+// Column headers this dashboard understands. Add/adjust aliases here if your
+// sheet's header text differs — matching is case/space/punctuation-insensitive.
 const FIELD_ALIASES = {
   date: ["date"],
   day: ["day"],
@@ -15,7 +23,8 @@ const FIELD_ALIASES = {
   remarks: ["remarks"],
   empStrength: ["estemployeestrength", "employeestrength", "empstrength"],
   meetings: ["noofmeetingsdone", "meetingsdone", "meetings"],
-  leads: ["noofleadsreceived", "leadsreceived", "leads"]
+  leads: ["noofleadsreceived", "leadsreceived", "leads"],
+  nestsManual: ["approxnestsrequired", "nestsrequired", "nestsreq", "manualnests", "nests"]
 };
 
 function normalizeHeader(h){
@@ -181,7 +190,12 @@ function rowsFromSheetJson(json){
       remarks: (get("remarks") || "").toString().trim(),
       empStrength: toNumber(get("empStrength")),
       meetings: toNumber(get("meetings")),
-      leads: toNumber(get("leads"))
+      leads: toNumber(get("leads")),
+      nestsManual: (()=>{
+        const raw = get("nestsManual");
+        if(raw === undefined || raw === null || String(raw).trim() === "") return null;
+        return toNumber(raw);
+      })()
     };
   }).filter(r => r.company);
 
@@ -252,11 +266,14 @@ function onAsOfChange(){
 function companyMetrics(rows){
   const byCompany = new Map();
   rows.forEach(r=>{
-    if(!byCompany.has(r.company)) byCompany.set(r.company, r.empStrength);
+    if(!byCompany.has(r.company)) byCompany.set(r.company, {empStrength: r.empStrength, nestsManual: r.nestsManual});
   });
   const companiesVisited = byCompany.size;
-  const empStrength = [...byCompany.values()].reduce((s,v)=>s+v,0);
-  const nests = [...byCompany.values()].reduce((s,v)=>s+Math.ceil(v/NEST_RATIO),0);
+  let empStrength = 0, nests = 0;
+  byCompany.forEach(v=>{
+    empStrength += v.empStrength;
+    nests += (v.nestsManual !== null && v.nestsManual > 0) ? v.nestsManual : Math.ceil(v.empStrength/NEST_RATIO);
+  });
   return {companiesVisited, empStrength, nests};
 }
 function visitMetrics(rows){
